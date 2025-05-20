@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Underwater Wonderland</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.8.0/lib/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #0b486b, #0b3d5f);
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        #canvas-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 50, 100, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            max-width: 250px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        #controls h3 {
+            margin-top: 0;
+            color: #7fdbff;
+        }
+        #controls label {
+            display: block;
+            margin: 8px 0 4px;
+            font-size: 14px;
+        }
+        #controls input[type="range"] {
+            width: 100%;
+        }
+        #controls button {
+            background: #0074d9;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            margin: 5px 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #controls button:hover {
+            background: #0088ff;
+        }
+        .value-display {
+            font-size: 12px;
+            color: #7fdbff;
+            margin-bottom: 10px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #toggle-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 50, 100, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 100;
+        }
+    </style>
+
+<base target="_self">
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <button id="toggle-controls">⚙️</button>
+    <div id="controls">
+        <h3>Underwater Controls</h3>
+        
+        <div class="control-group">
+            <label for="jellyfish-count">Jellyfish Count</label>
+            <input type="range" id="jellyfish-count" min="3" max="20" value="8">
+            <div class="value-display" id="jellyfish-count-value">8</div>
+            
+            <label for="jellyfish-speed">Jellyfish Speed</label>
+            <input type="range" id="jellyfish-speed" min="0.1" max="2" step="0.1" value="0.5">
+            <div class="value-display" id="jellyfish-speed-value">0.5</div>
+        </div>
+        
+        <div class="control-group">
+            <label for="bubble-count">Bubble Density</label>
+            <input type="range" id="bubble-count" min="5" max="50" value="20">
+            <div class="value-display" id="bubble-count-value">20</div>
+            
+            <label for="bubble-speed">Bubble Speed</label>
+            <input type="range" id="bubble-speed" min="0.5" max="3" step="0.1" value="1.5">
+            <div class="value-display" id="bubble-speed-value">1.5</div>
+        </div>
+        
+        <div class="control-group">
+            <label for="coral-sway">Coral Sway Intensity</label>
+            <input type="range" id="coral-sway" min="0.1" max="2" step="0.1" value="0.8">
+            <div class="value-display" id="coral-sway-value">0.8</div>
+            
+            <label for="current-strength">Current Strength</label>
+            <input type="range" id="current-strength" min="0" max="1" step="0.05" value="0.3">
+            <div class="value-display" id="current-strength-value">0.3</div>
+        </div>
+        
+        <button id="reset-btn">Reset</button>
+        <button id="randomize-btn">Randomize</button>
+    </div>
+
+    <script>
+        const underwaterSimulation = (p) => {
+            // Simulation parameters
+            let params = {
+                jellyfishCount: 8,
+                jellyfishSpeed: 0.5,
+                bubbleCount: 20,
+                bubbleSpeed: 1.5,
+                coralSway: 0.8,
+                currentStrength: 0.3,
+                showControls: true
+            };
+            
+            // Simulation elements
+            let jellyfish = [];
+            let bubbles = [];
+            let corals = [];
+            let fruitHouses = [];
+            let sandParticles = [];
+            let oceanFloor = [];
+            let fish = [];
+            
+            // Interactive elements
+            let hiddenTreasures = [];
+            let lastClickTime = 0;
+            let mouseDisturbance = 0;
+            
+            // Graphics buffers
+            let coralBuffer;
+            let sandBuffer;
+            
+            p.setup = () => {
+                let canvas = p.createCanvas(p.windowWidth * 0.9, p.windowHeight * 0.9);
+                canvas.parent('canvas-container');
+                
+                // Create graphics buffers
+                coralBuffer = p.createGraphics(p.width, p.height);
+                sandBuffer = p.createGraphics(p.width, p.height);
+                
+                // Initialize simulation elements
+                initFruitHouses();
+                initCorals();
+                initSand();
+                initOceanFloor();
+                
+                // Setup UI controls
+                setupUIControls();
+                
+                // Initial population
+                resetSimulation();
+            };
+            
+            p.draw = () => {
+                // Update mouse disturbance effect
+                mouseDisturbance = p.max(0, mouseDisturbance - 0.01);
+                
+                // Draw background with light rays
+                drawBackground();
+                
+                // Draw ocean floor elements from buffers
+                p.image(sandBuffer, 0, 0);
+                p.image(coralBuffer, 0, 0);
+                
+                // Update and draw all elements
+                updateAndDrawBubbles();
+                updateAndDrawJellyfish();
+                drawFruitHouses();
+                updateAndDrawFish();
+                
+                // Draw interactive elements
+                drawHiddenTreasures();
+                drawMouseDisturbance();
+                
+                // Draw UI if enabled
+                if (params.showControls) {
+                    drawUI();
+                }
+            };
+            
+            function drawBackground() {
+                // Gradient from surface to deep ocean
+                let topColor = p.color(10, 60, 120, 150);
+                let bottomColor = p.color(5, 30, 60);
+                
+                for (let y = 0; y < p.height; y++) {
+                    let inter = p.map(y, 0, p.height, 0, 1);
+                    let c = p.lerpColor(topColor, bottomColor, inter);
+                    p.stroke(c);
+                    p.line(0, y, p.width, y);
+                }
+                
+                // Draw light rays
+                drawLightRays();
+            }
+            
+            function drawLightRays() {
+                p.push();
+                p.blendMode(p.ADD);
+                let centerX = p.width / 2;
+                let rayCount = 8;
+                
+                for (let i = 0; i < rayCount; i++) {
+                    let angle = p.map(i, 0, rayCount, -p.PI/4, p.PI/4);
+                    let length = p.height * 1.5;
+                    let x2 = centerX + p.cos(angle) * length;
+                    let y2 = p.sin(angle) * length;
+                    
+                    let alpha = p.map(p.noise(i * 10, p.frameCount * 0.01), 0, 1, 10, 30);
+                    p.stroke(150, 200, 255, alpha);
+                    p.strokeWeight(p.random(1, 3));
+                    
+                    // Draw multiple lines for each ray to create glow
+                    for (let j = 0; j < 3; j++) {
+                        let offset = p.random(-5, 5);
+                        p.line(centerX + offset, 0, x2 + offset, y2);
+                    }
+                }
+                p.pop();
+            }
+            
+            function initFruitHouses() {
+                fruitHouses = [
+                    {x: p.width * 0.2, y: p.height * 0.7, type: 'pineapple', size: 120, color: p.color(255, 200, 50)},
+                    {x: p.width * 0.5, y: p.height * 0.75, type: 'watermelon', size: 140, color: p.color(200, 50, 60)},
+                    {x: p.width * 0.8, y: p.height * 0.8, type: 'banana', size: 100, color: p.color(255, 220, 50)},
+                    {x: p.width * 0.35, y: p.height * 0.85, type: 'strawberry', size: 90, color: p.color(220, 50, 50)},
+                    {x: p.width * 0.65, y: p.height * 0.78, type: 'orange', size: 110, color: p.color(255, 150, 0)}
+                ];
+                
+                // Create hidden treasures near houses
+                fruitHouses.forEach(house => {
+                    hiddenTreasures.push({
+                        x: house.x + p.random(-50, 50),
+                        y: house.y - house.size/2 - 20,
+                        size: 30,
+                        found: false,
+                        type: ['pearl', 'shell', 'coin'][p.floor(p.random(3))]
+                    });
+                });
+            }
+            
+            function drawFruitHouses() {
+                fruitHouses.forEach(house => {
+                    p.push();
+                    p.translate(house.x, house.y);
+                    
+                    // Draw house based on type
+                    switch(house.type) {
+                        case 'pineapple':
+                            drawPineappleHouse(house);
+                            break;
+                        case 'watermelon':
+                            drawWatermelonHouse(house);
+                            break;
+                        case 'banana':
+                            drawBananaHouse(house);
+                            break;
+                        case 'strawberry':
+                            drawStrawberryHouse(house);
+                            break;
+                        case 'orange':
+                            drawOrangeHouse(house);
+                            break;
+                    }
+                    
+                    // Draw windows and door
+                    drawHouseDetails(house);
+                    p.pop();
+                });
+            }
+            
+            function drawPineappleHouse(house) {
+                // Pineapple body
+                p.fill(house.color);
+                p.ellipse(0, 0, house.size, house.size * 1.2);
+                
+                // Leaf crown
+                p.fill(50, 150, 50);
+                for (let i = 0; i < 8; i++) {
+                    let angle = p.map(i, 0, 8, 0, p.TWO_PI);
+                    p.push();
+                    p.rotate(angle);
+                    p.triangle(
+                        0, -house.size * 0.6,
+                        -15, -house.size * 0.9,
+                        15, -house.size * 0.9
+                    );
+                    p.pop();
+                }
+                
+                // Crosshatch pattern
+                p.stroke(180, 120, 30);
+                p.strokeWeight(1);
+                for (let y = -house.size * 0.5; y < house.size * 0.5; y += 15) {
+                    p.line(-house.size * 0.4, y, house.size * 0.4, y);
+                }
+                for (let x = -house.size * 0.4; x < house.size * 0.4; x += 15) {
+                    p.line(x, -house.size * 0.5, x, house.size * 0.5);
+                }
+            }
+            
+            function drawWatermelonHouse(house) {
+                // Main body
+                p.fill(house.color);
+                p.ellipse(0, 0, house.size, house.size);
+                
+                // Stripes
+                p.stroke(0, 80, 0);
+                p.strokeWeight(3);
+                for (let y = -house.size * 0.4; y < house.size * 0.4; y += 15) {
+                    p.line(-house.size * 0.45, y, house.size * 0.45, y);
+                }
+                
+                // Stem
+                p.fill(50, 100, 50);
+                p.rect(-5, -house.size * 0.5, 10, 15);
+            }
+            
+            function drawBananaHouse(house) {
+                // Banana shape
+                p.fill(house.color);
+                p.beginShape();
+                p.vertex(-house.size * 0.3, house.size * 0.2);
+                p.bezierVertex(
+                    -house.size * 0.4, -house.size * 0.2,
+                    house.size * 0.4, -house.size * 0.3,
+                    house.size * 0.3, house.size * 0.1
+                );
+                p.bezierVertex(
+                    house.size * 0.2, house.size * 0.4,
+                    -house.size * 0.2, house.size * 0.5,
+                    -house.size * 0.3, house.size * 0.2
+                );
+                p.endShape(p.CLOSE);
+                
+                // Stem
+                p.fill(100, 80, 30);
+                p.ellipse(-house.size * 0.25, -house.size * 0.15, 10, 15);
+            }
+            
+            function drawStrawberryHouse(house) {
+                // Strawberry body
+                p.fill(house.color);
+                p.beginShape();
+                p.vertex(0, -house.size * 0.4);
+                p.bezierVertex(
+                    house.size * 0.3, -house.size * 0.2,
+                    house.size * 0.3, house.size * 0.4,
+                    0, house.size * 0.5
+                );
+                p.bezierVertex(
+                    -house.size * 0.3, house.size * 0.4,
+                    -house.size * 0.3, -house.size * 0.2,
+                    0, -house.size * 0.4
+                );
+                p.endShape(p.CLOSE);
+                
+                // Seeds
+                p.fill(255, 255, 200);
+                for (let i = 0; i < 20; i++) {
+                    let angle = p.random(p.TWO_PI);
+                    let r = p.random(house.size * 0.2, house.size * 0.4);
+                    let x = p.cos(angle) * r;
+                    let y = p.sin(angle) * r;
+                    p.ellipse(x, y, 3, 3);
+                }
+                
+                // Leaves
+                p.fill(50, 150, 50);
+                for (let i = 0; i < 5; i++) {
+                    let angle = p.map(i, 0, 5, -p.PI/4, p.PI/4);
+                    p.push();
+                    p.rotate(angle);
+                    p.ellipse(0, -house.size * 0.45, 20, 10);
+                    p.pop();
+                }
+            }
+            
+            function drawOrangeHouse(house) {
+                // Orange body
+                p.fill(house.color);
+                p.ellipse(0, 0, house.size, house.size);
+                
+                // Segments
+                p.stroke(255, 180, 50);
+                p.strokeWeight(1);
+                for (let i = 0; i < 8; i++) {
+                    let angle = p.map(i, 0, 8, 0, p.TWO_PI);
+                    p.line(0, 0, p.cos(angle) * house.size * 0.5, p.sin(angle) * house.size * 0.5);
+                }
+                
+                // Stem
+                p.fill(100, 80, 30);
+                p.ellipse(0, -house.size * 0.45, 8, 12);
+            }
+            
+            function drawHouseDetails(house) {
+                // Windows
+                p.fill(150, 220, 255, 200);
+                let windowSize = house.size * 0.15;
+                
+                if (house.type === 'banana') {
+                    p.ellipse(-house.size * 0.15, 0, windowSize, windowSize);
+                    p.ellipse(house.size * 0.15, 0, windowSize, windowSize);
+                } else {
+                    p.rect(-house.size * 0.3, -house.size * 0.1, windowSize, windowSize);
+                    p.rect(house.size * 0.3 - windowSize, -house.size * 0.1, windowSize, windowSize);
+                }
+                
+                // Door
+                p.fill(150, 100, 50);
+                p.rect(-house.size * 0.1, house.size * 0.2, house.size * 0.2, house.size * 0.3);
+                
+                // Door knob
+                p.fill(200, 150, 0);
+                p.ellipse(house.size * 0.05, house.size * 0.35, 5, 5);
+            }
+            
+            function initCorals() {
+                coralBuffer.clear();
+                coralBuffer.noStroke();
+                
+                // Draw colorful corals
+                for (let i = 0; i < 15; i++) {
+                    let x = p.random(p.width);
+                    let y = p.random(p.height * 0.6, p.height * 0.95);
+                    let size = p.random(50, 150);
+                    let swayAmount = p.random(0.5, 1.5);
+                    let color = p.color(
+                        p.random(150, 250),
+                        p.random(50, 150),
+                        p.random(100, 200),
+                        200
+                    );
+                    
+                    corals.push({x, y, size, swayAmount, color, noiseOffset: p.random(1000)});
+                    
+                    // Draw coral to buffer
+                    drawCoralToBuffer(x, y, size, swayAmount, color);
+                }
+            }
+            
+            function drawCoralToBuffer(x, y, size, swayAmount, color) {
+                coralBuffer.push();
+                coralBuffer.translate(x, y);
+                coralBuffer.fill(color);
+                
+                // Draw coral branches
+                let branchCount = p.floor(p.random(5, 9));
+                for (let i = 0; i < branchCount; i++) {
+                    let angle = p.map(i, 0, branchCount, -p.PI/3, p.PI/3);
+                    let branchLength = size * p.random(0.7, 1.3);
+                    let branchWidth = size * 0.1 * p.random(0.8, 1.2);
+                    
+                    coralBuffer.push();
+                    coralBuffer.rotate(angle);
+                    
+                    // Main branch
+                    coralBuffer.ellipse(0, -branchLength/2, branchWidth, branchLength);
+                    
+                    // Side branches
+                    let sideBranches = p.floor(p.random(2, 5));
+                    for (let j = 0; j < sideBranches; j++) {
+                        let pos = p.map(j, 0, sideBranches, -branchLength * 0.4, branchLength * 0.4);
+                        let sideLength = branchLength * p.random(0.2, 0.4);
+                        let sideWidth = branchWidth * 0.7;
+                        
+                        coralBuffer.push();
+                        coralBuffer.translate(0, pos);
+                        coralBuffer.rotate(p.PI/2 * p.random(0.8, 1.2));
+                        coralBuffer.ellipse(0, -sideLength/2, sideWidth, sideLength);
+                        coralBuffer.pop();
+                    }
+                    
+                    coralBuffer.pop();
+                }
+                
+                coralBuffer.pop();
+            }
+            
+            function initSand() {
+                sandBuffer.clear();
+                sandBuffer.noStroke();
+                
+                // Draw sand texture
+                for (let i = 0; i < 500; i++) {
+                    let x = p.random(p.width);
+                    let y = p.random(p.height * 0.7, p.height);
+                    let size = p.random(1, 3);
+                    let color = p.lerpColor(
+                        p.color(240, 220, 180),
+                        p.color(220, 200, 160),
+                        p.random()
+                    );
+                    
+                    sandBuffer.fill(color);
+                    sandBuffer.ellipse(x, y, size, size);
+                }
+                
+                // Draw some larger sand mounds
+                for (let i = 0; i < 20; i++) {
+                    let x = p.random(p.width);
+                    let y = p.random(p.height * 0.8, p.height);
+                    let size = p.random(30, 80);
+                    let color = p.lerpColor(
+                        p.color(240, 220, 180),
+                        p.color(220, 200, 160),
+                        p.random()
+                    );
+                    
+                    sandBuffer.fill(color);
+                    sandBuffer.ellipse(x, y, size, size * 0.5);
+                }
+            }
+            
+            function initOceanFloor() {
+                // Create some rocks and shells
+                for (let i = 0; i < 30; i++) {
+                    let x = p.random(p.width);
+                    let y = p.random(p.height * 0.7, p.height);
+                    let size = p.random(10, 30);
+                    let type = p.random() > 0.5 ? 'rock' : 'shell';
+                    let color;
+                    
+                    if (type === 'rock') {
+                        color = p.lerpColor(
+                            p.color(100, 80, 60),
+                            p.color(80, 60, 40),
+                            p.random()
+                        );
+                    } else {
+                        color = p.lerpColor(
+                            p.color(240, 230, 220),
+                            p.color(220, 210, 200),
+                            p.random()
+                        );
+                    }
+                    
+                    oceanFloor.push({x, y, size, type, color});
+                    
+                    // Draw to sand buffer
+                    sandBuffer.fill(color);
+                    if (type === 'rock') {
+                        sandBuffer.beginShape();
+                        for (let j = 0; j < 6; j++) {
+                            let angle = p.map(j, 0, 6, 0, p.TWO_PI);
+                            let r = size * 0.5 * p.random(0.8, 1.2);
+                            sandBuffer.vertex(
+                                x + p.cos(angle) * r,
+                                y + p.sin(angle) * r
+                            );
+                        }
+                        sandBuffer.endShape(p.CLOSE);
+                    } else {
+                        sandBuffer.push();
+                        sandBuffer.translate(x, y);
+                        sandBuffer.rotate(p.random(p.PI));
+                        sandBuffer.beginShape();
+                        sandBuffer.vertex(0, 0);
+                        sandBuffer.bezierVertex(
+                            size * 0.5, -size * 0.3,
+                            size * 0.8, 0,
+                            size * 0.5, size * 0.3
+                        );
+                        sandBuffer.bezierVertex(
+                            0, size * 0.1,
+                            0, -size * 0.1,
+                            0, 0
+                        );
+                        sandBuffer.endShape(p.CLOSE);
+                        sandBuffer.pop();
+                    }
+                }
+            }
+            
+            function resetSimulation() {
+                // Reset jellyfish
+                jellyfish = [];
+                for (let i = 0; i < params.jellyfishCount; i++) {
+                    jellyfish.push(createJellyfish());
+                }
+                
+                // Reset bubbles
+                bubbles = [];
+                for (let i = 0; i < params.bubbleCount; i++) {
+                    bubbles.push(createBubble());
+                }
+                
+                // Reset fish
+                fish = [];
+                for (let i = 0; i < 5; i++) {
+                    fish.push(createFish());
+                }
+                
+                // Reset treasures
+                hiddenTreasures.forEach(treasure => {
+                    treasure.found = false;
+                });
+            }
+            
+            function createJellyfish() {
+                return {
+                    x: p.random(p.width),
+                    y: p.random(p.height * 0.2, p.height * 0.8),
+                    size: p.random(40, 80),
+                    speed: p.random(0.3, 0.7) * params.jellyfishSpeed,
+                    direction: p.random(p.TWO_PI),
+                    color: p.color(
+                        p.random(200, 255),
+                        p.random(100, 200),
+                        p.random(150, 250),
+                        p.random(150, 200)
+                    ),
+                    tentacleCount: p.floor(p.random(6, 10)),
+                    noiseOffset: p.random(1000),
+                    pulseSpeed: p.random(0.02, 0.05),
+                    pulseSize: p.random(0.8, 1.2)
+                };
+            }
+            
+            function updateAndDrawJellyfish() {
+                jellyfish.forEach(jelly => {
+                    // Update position with noise-based movement
+                    jelly.noiseOffset += 0.01;
+                    let n = p.noise(jelly.noiseOffset) * p.TWO_PI * 2;
+                    
+                    jelly.direction += p.map(n, 0, 1, -0.1, 0.1);
+                    jelly.x += p.cos(jelly.direction) * jelly.speed;
+                    jelly.y += p.sin(jelly.direction) * jelly.speed;
+                    
+                    // Apply current
+                    jelly.x += params.currentStrength * 0.5;
+                    
+                    // Boundary checking
+                    if (jelly.x < -jelly.size) jelly.x = p.width + jelly.size;
+                    if (jelly.x > p.width + jelly.size) jelly.x = -jelly.size;
+                    if (jelly.y < -jelly.size) jelly.y = p.height + jelly.size;
+                    if (jelly.y > p.height * 0.9) jelly.y = -jelly.size;
+                    
+                    // Draw jellyfish
+                    drawJellyfish(jelly);
+                });
+            }
+            
+            function drawJellyfish(jelly) {
+                p.push();
+                p.translate(jelly.x, jelly.y);
+                
+                // Pulsing effect
+                let pulse = p.sin(p.frameCount * jelly.pulseSpeed) * 0.1 + 1;
+                let currentSize = jelly.size * pulse * jelly.pulseSize;
+                
+                // Bell shape
+                p.fill(jelly.color);
+                p.beginShape();
+                p.vertex(0, -currentSize * 0.5);
+                p.bezierVertex(
+                    currentSize * 0.5, -currentSize * 0.3,
+                    currentSize * 0.5, currentSize * 0.1,
+                    0, currentSize * 0.2
+                );
+                p.bezierVertex(
+                    -currentSize * 0.5, currentSize * 0.1,
+                    -currentSize * 0.5, -currentSize * 0.3,
+                    0, -currentSize * 0.5
+                );
+                p.endShape(p.CLOSE);
+                
+                // Glow effect
+                p.blendMode(p.ADD);
+                p.fill(jelly.color);
+                p.ellipse(0, 0, currentSize * 1.5, currentSize * 1.2);
+                p.blendMode(p.BLEND);
+                
+                // Tentacles
+                p.stroke(jelly.color);
+                p.strokeWeight(2);
+                p.noFill();
+                
+                for (let i = 0; i < jelly.tentacleCount; i++) {
+                    let angle = p.map(i, 0, jelly.tentacleCount, -p.PI/2, p.PI/2);
+                    let length = currentSize * p.random(0.8, 1.5);
+                    let segments = 10;
+                    
+                    p.beginShape();
+                    p.curveVertex(0, currentSize * 0.2);
+                    p.curveVertex(0, currentSize * 0.2);
+                    
+                    for (let j = 1; j <= segments; j++) {
+                        let t = j / segments;
+                        let x = p.sin(angle) * currentSize * 0.3 * t;
+                        let y = currentSize * 0.2 + length * t;
+                        let sway = p.sin(p.frameCount * 0.05 + i * 10) * 5 * (1 - t);
+                        
+                        p.curveVertex(x + sway, y);
+                    }
+                    
+                    p.curveVertex(
+                        p.sin(angle) * currentSize * 0.3,
+                        currentSize * 0.2 + length
+                    );
+                    p.endShape();
+                }
+                
+                // Eyes
+                p.fill(0);
+                p.noStroke();
+                let eyeSize = currentSize * 0.08;
+                p.ellipse(-currentSize * 0.15, -currentSize * 0.1, eyeSize, eyeSize * 1.2);
+                p.ellipse(currentSize * 0.15, -currentSize * 0.1, eyeSize, eyeSize * 1.2);
+                
+                p.pop();
+            }
+            
+            function createBubble() {
+                return {
+                    x: p.random(p.width),
+                    y: p.random(p.height * 0.5, p.height),
+                    size: p.random(5, 20),
+                    speed: p.random(0.5, 1.5) * params.bubbleSpeed,
+                    wobble: p.random(0.1, 0.3),
+                    wobbleSpeed: p.random(0.02, 0.05),
+                    wobbleOffset: p.random(p.TWO_PI),
+                    alpha: p.random(100, 200)
+                };
+            }
+            
+            function updateAndDrawBubbles() {
+                bubbles.forEach((bubble, i) => {
+                    // Update position
+                    bubble.y -= bubble.speed;
+                    
+                    // Apply current
+                    bubble.x += params.currentStrength;
+                    
+                    // Wobble effect
+                    bubble.wobbleOffset += bubble.wobbleSpeed;
+                    bubble.x += p.sin(bubble.wobbleOffset) * bubble.wobble;
+                    
+                    // Reset if off screen
+                    if (bubble.y < -bubble.size) {
+                        bubbles[i] = createBubble();
+                        bubbles[i].y = p.height + bubble.size;
+                    }
+                    
+                    // Draw bubble
+                    drawBubble(bubble);
+                });
+                
+                // Add more bubbles if needed
+                while (bubbles.length < params.bubbleCount) {
+                    bubbles.push(createBubble());
+                }
+                
+                // Remove excess bubbles
+                while (bubbles.length > params.bubbleCount) {
+                    bubbles.pop();
+                }
+            }
+            
+            function drawBubble(bubble) {
+                p.push();
+                p.translate(bubble.x, bubble.y);
+                
+                // Bubble body
+                p.fill(200, 240, 255, bubble.alpha);
+                p.ellipse(0, 0, bubble.size, bubble.size);
+                
+                // Highlight
+                p.fill(255, 255, 255, bubble.alpha * 0.8);
+                p.ellipse(
+                    -bubble.size * 0.2,
+                    -bubble.size * 0.2,
+                    bubble.size * 0.4,
+                    bubble.size * 0.4
+                );
+                
+                p.pop();
+            }
+            
+            function createFish() {
+                let size = p.random(30, 60);
+                return {
+                    x: p.random(p.width),
+                    y: p.random(p.height * 0.3, p.height * 0.9),
+                    size: size,
+                    speed: p.random(1, 3),
+                    direction: p.random(p.TWO_PI),
+                    color: p.color(
+                        p.random(150, 250),
+                        p.random(50, 150),
+                        p.random(50, 150)
+                    ),
+                    wiggleSpeed: p.random(0.05, 0.1),
+                    wiggleAmount: p.random(5, 15),
+                    type: p.random() > 0.5 ? 'round' : 'long'
+                };
+            }
+            
+            function updateAndDrawFish() {
+                fish.forEach(f => {
+                    // Update position
+                    f.x += p.cos(f.direction) * f.speed;
+                    f.y += p.sin(f.direction) * f.speed;
+                    
+                    // Apply current
+                    f.x += params.currentStrength * 0.8;
+                    
+                    // Random direction changes
+                    if (p.random() < 0.02) {
+                        f.direction += p.random(-0.5, 0.5);
+                    }
+                    
+                    // Boundary checking
+                    if (f.x < -f.size * 2) {
+                        f.x = p.width + f.size;
+                        f.y = p.random(p.height * 0.3, p.height * 0.9);
+                    }
+                    if (f.x > p.width + f.size * 2) {
+                        f.x = -f.size;
+                        f.y = p.random(p.height * 0.3, p.height * 0.9);
+                    }
+                    if (f.y < -f.size) {
+                        f.y = p.height + f.size;
+                        f.x = p.random(p.width);
+                    }
+                    if (f.y > p.height + f.size) {
+                        f.y = -f.size;
+                        f.x = p.random(p.width);
+                    }
+                    
+                    // Draw fish
+                    drawFish(f);
+                });
+            }
+            
+            function drawFish(f) {
+                p.push();
+                p.translate(f.x, f.y);
+                p.rotate(f.direction);
+                
+                // Body
+                p.fill(f.color);
+                
+                if (f.type === 'round') {
+                    // Round fish body
+                    p.beginShape();
+                    p.vertex(0, 0);
+                    p.bezierVertex(
+                        f.size * 0.7, -f.size * 0.3,
+                        f.size * 0.5, 0,
+                        f.size * 0.7, f.size * 0.3
+                    );
+                    p.bezierVertex(
+                        0, f.size * 0.2,
+                        0, -f.size * 0.2,
+                        0, 0
+                    );
+                    p.endShape(p.CLOSE);
+                    
+                    // Tail
+                    p.beginShape();
+                    p.vertex(f.size * 0.7, 0);
+                    p.vertex(f.size, -f.size * 0.4);
+                    p.vertex(f.size * 0.9, 0);
+                    p.vertex(f.size, f.size * 0.4);
+                    p.endShape(p.CLOSE);
+                    
+                    // Eye
+                    p.fill(0);
+                    p.ellipse(-f.size * 0.1, -f.size * 0.1, f.size * 0.1, f.size * 0.1);
+                } else {
+                    // Long fish body with wiggle
+                    let wiggle = p.sin(p.frameCount * f.wiggleSpeed) * f.wiggleAmount;
+                    
+                    p.beginShape();
+                    p.vertex(0, 0);
+                    p.bezierVertex(
+                        f.size * 0.3, -f.size * 0.2,
+                        f.size * 0.6, -f.size * 0.3 + wiggle * 0.5,
+                        f.size, 0 + wiggle
+                    );
+                    p.bezierVertex(
+                        f.size * 0.6, f.size * 0.3 + wiggle * 0.5,
+                        f.size * 0.3, f.size * 0.2,
+                        0, 0
+                    );
+                    p.endShape(p.CLOSE);
+                    
+                    // Tail
+                    p.beginShape();
+                    p.vertex(f.size, 0 + wiggle);
+                    p.vertex(f.size * 1.3, -f.size * 0.4 + wiggle * 1.5);
+                    p.vertex(f.size * 1.2, 0 + wiggle);
+                    p.vertex(f.size * 1.3, f.size * 0.4 + wiggle * 1.5);
+                    p.endShape(p.CLOSE);
+                    
+                    // Eye
+                    p.fill(0);
+                    p.ellipse(-f.size * 0.1, 0, f.size * 0.1, f.size * 0.1);
+                }
+                
+                p.pop();
+            }
+            
+            function drawHiddenTreasures() {
+                hiddenTreasures.forEach(treasure => {
+                    if (treasure.found) {
+                        p.push();
+                        p.translate(treasure.x, treasure.y);
+                        
+                        switch(treasure.type) {
+                            case 'pearl':
+                                p.fill(240, 240, 255);
+                                p.ellipse(0, 0, treasure.size, treasure.size);
+                                p.fill(255, 255, 255, 100);
+                                p.ellipse(-treasure.size/4, -treasure.size/4, treasure.size/3, treasure.size/3);
+                                break;
+                                
+                            case 'shell':
+                                p.fill(230, 200, 180);
+                                p.beginShape();
+                                p.vertex(0, 0);
+                                p.bezierVertex(
+                                    treasure.size * 0.5, -treasure.size * 0.5,
+                                    treasure.size, -treasure.size * 0.3,
+                                    treasure.size, 0
+                                );
+                                p.bezierVertex(
+                                    treasure.size, treasure.size * 0.5,
+                                    treasure.size * 0.5, treasure.size * 0.5,
+                                    0, 0
+                                );
+                                p.endShape(p.CLOSE);
+                                break;
+                                
+                            case 'coin':
+                                p.fill(255, 215, 0);
+                                p.ellipse(0, 0, treasure.size, treasure.size);
+                                p.fill(220, 180, 0);
+                                p.ellipse(0, 0, treasure.size * 0.7, treasure.size * 0.7);
+                                break;
+                        }
+                        
+                        p.pop();
+                    }
+                });
+            }
+            
+            function drawMouseDisturbance() {
+                if (mouseDisturbance > 0) {
+                    p.push();
+                    p.noFill();
+                    p.stroke(255, 255, 255, mouseDisturbance * 100);
+                    p.strokeWeight(2);
+                    p.circle(p.mouseX, p.mouseY, mouseDisturbance * 100);
+                    p.pop();
+                }
+            }
+            
+            function drawUI() {
+                p.fill(0, 0, 0, 80);
+                p.noStroke();
+                p.rect(10, 10, 300, 30);
+                p.fill(255);
+                p.textSize(14);
+                p.text('Click to disturb the water and find treasures!', 20, 30);
+            }
+            
+            p.mousePressed = () => {
+                // Disturb water
+                mouseDisturbance = 1;
+                
+                // Check for hidden treasures
+                hiddenTreasures.forEach(treasure => {
+                    let d = p.dist(p.mouseX, p.mouseY, treasure.x, treasure.y);
+                    if (d < 50) {
+                        treasure.found = true;
+                    }
+                });
+                
+                // Double click to add fish
+                if (p.millis() - lastClickTime < 300) {
+                    fish.push({
+                        x: p.mouseX,
+                        y: p.mouseY,
+                        size: p.random(30, 60),
+                        speed: p.random(1, 3),
+                        direction: p.random(p.TWO_PI),
+                        color: p.color(
+                            p.random(150, 250),
+                            p.random(50, 150),
+                            p.random(50, 150)
+                        ),
+                        wiggleSpeed: p.random(0.05, 0.1),
+                        wiggleAmount: p.random(5, 15),
+                        type: p.random() > 0.5 ? 'round' : 'long'
+                    });
+                }
+                
+                lastClickTime = p.millis();
+            };
+            
+            p.windowResized = () => {
+                p.resizeCanvas(p.windowWidth * 0.9, p.windowHeight * 0.9);
+                coralBuffer = p.createGraphics(p.width, p.height);
+                sandBuffer = p.createGraphics(p.width, p.height);
+                
+                initFruitHouses();
+                initCorals();
+                initSand();
+                initOceanFloor();
+            };
+            
+            function setupUIControls() {
+                // Jellyfish controls
+                document.getElementById('jellyfish-count').addEventListener('input', function() {
+                    params.jellyfishCount = parseInt(this.value);
+                    document.getElementById('jellyfish-count-value').textContent = this.value;
+                    resetSimulation();
+                });
+                
+                document.getElementById('jellyfish-speed').addEventListener('input', function() {
+                    params.jellyfishSpeed = parseFloat(this.value);
+                    document.getElementById('jellyfish-speed-value').textContent = this.value;
+                    jellyfish.forEach(jelly => {
+                        jelly.speed = jelly.speed * params.jellyfishSpeed / (params.jellyfishSpeed - (parseFloat(this.value) - params.jellyfishSpeed));
+                    });
+                });
+                
+                // Bubble controls
+                document.getElementById('bubble-count').addEventListener('input', function() {
+                    params.bubbleCount = parseInt(this.value);
+                    document.getElementById('bubble-count-value').textContent = this.value;
+                });
+                
+                document.getElementById('bubble-speed').addEventListener('input', function() {
+                    params.bubbleSpeed = parseFloat(this.value);
+                    document.getElementById('bubble-speed-value').textContent = this.value;
+                    bubbles.forEach(bubble => {
+                        bubble.speed = bubble.speed * params.bubbleSpeed / (params.bubbleSpeed - (parseFloat(this.value) - params.bubbleSpeed));
+                    });
+                });
+                
+                // Coral controls
+                document.getElementById('coral-sway').addEventListener('input', function() {
+                    params.coralSway = parseFloat(this.value);
+                    document.getElementById('coral-sway-value').textContent = this.value;
+                });
+                
+                document.getElementById('current-strength').addEventListener('input', function() {
+                    params.currentStrength = parseFloat(this.value);
+                    document.getElementById('current-strength-value').textContent = this.value;
+                });
+                
+                // Buttons
+                document.getElementById('reset-btn').addEventListener('click', function() {
+                    resetSimulation();
+                });
+                
+                document.getElementById('randomize-btn').addEventListener('click', function() {
+                    // Randomize parameters
+                    document.getElementById('jellyfish-count').value = p.floor(p.random(3, 20));
+                    document.getElementById('jellyfish-speed').value = p.random(0.1, 2).toFixed(1);
+                    document.getElementById('bubble-count').value = p.floor(p.random(5, 50));
+                    document.getElementById('bubble-speed').value = p.random(0.5, 3).toFixed(1);
+                    document.getElementById('coral-sway').value = p.random(0.1, 2).toFixed(1);
+                    document.getElementById('current-strength').value = p.random(0, 1).toFixed(2);
+                    
+                    // Update displays
+                    document.getElementById('jellyfish-count-value').textContent = document.getElementById('jellyfish-count').value;
+                    document.getElementById('jellyfish-speed-value').textContent = document.getElementById('jellyfish-speed').value;
+                    document.getElementById('bubble-count-value').textContent = document.getElementById('bubble-count').value;
+                    document.getElementById('bubble-speed-value').textContent = document.getElementById('bubble-speed').value;
+                    document.getElementById('coral-sway-value').textContent = document.getElementById('coral-sway').value;
+                    document.getElementById('current-strength-value').textContent = document.getElementById('current-strength').value;
+                    
+                    // Apply changes
+                    params.jellyfishCount = parseInt(document.getElementById('jellyfish-count').value);
+                    params.jellyfishSpeed = parseFloat(document.getElementById('jellyfish-speed').value);
+                    params.bubbleCount = parseInt(document.getElementById('bubble-count').value);
+                    params.bubbleSpeed = parseFloat(document.getElementById('bubble-speed').value);
+                    params.coralSway = parseFloat(document.getElementById('coral-sway').value);
+                    params.currentStrength = parseFloat(document.getElementById('current-strength').value);
+                    
+                    resetSimulation();
+                });
+                
+                // Toggle controls visibility
+                document.getElementById('toggle-controls').addEventListener('click', function() {
+                    const controls = document.getElementById('controls');
+                    if (controls.style.display === 'none') {
+                        controls.style.display = 'block';
+                        params.showControls = true;
+                    } else {
+                        controls.style.display = 'none';
+                        params.showControls = false;
+                    }
+                });
+            }
+        };
+        
+        new p5(underwaterSimulation);
+    </script>
+</body>
+</html>
